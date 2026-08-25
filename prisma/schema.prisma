@@ -1,0 +1,209 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  schemas  = ["audit", "core", "organization", "platform"]
+}
+
+model activity_logs {
+  id              String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organization_id String?        @db.Uuid
+  user_id         String?        @db.Uuid
+  action          String         @db.VarChar(100)
+  module          String         @db.VarChar(100)
+  entity_type     String?        @db.VarChar(100)
+  entity_id       String?        @db.Uuid
+  description     String?
+  metadata        Json?
+  ip_address      String?        @db.Inet
+  user_agent      String?
+  created_at      DateTime       @default(now()) @db.Timestamptz(6)
+  organizations   organizations? @relation(fields: [organization_id], references: [id], onUpdate: NoAction, map: "fk_activity_organization")
+  users           users?         @relation(fields: [user_id], references: [id], onUpdate: NoAction, map: "fk_activity_user")
+
+  @@schema("audit")
+}
+
+model security_logs {
+  id              String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id         String?        @db.Uuid
+  organization_id String?        @db.Uuid
+  event_type      String         @db.VarChar(100)
+  success         Boolean        @default(true)
+  ip_address      String?        @db.Inet
+  user_agent      String?
+  details         Json?
+  created_at      DateTime       @default(now()) @db.Timestamptz(6)
+  organizations   organizations? @relation(fields: [organization_id], references: [id], onUpdate: NoAction, map: "fk_security_organization")
+  users           users?         @relation(fields: [user_id], references: [id], onUpdate: NoAction, map: "fk_security_user")
+
+  @@schema("audit")
+}
+
+model permissions {
+  id               String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name             String             @db.VarChar(150)
+  description      String?
+  module           String             @db.VarChar(100)
+  action           String             @db.VarChar(50)
+  created_at       DateTime           @default(now()) @db.Timestamptz(6)
+  role_permissions role_permissions[]
+
+  @@unique([module, action], map: "unique_permission")
+  @@schema("core")
+}
+
+model role_permissions {
+  role_id       String      @db.Uuid
+  permission_id String      @db.Uuid
+  created_at    DateTime    @default(now()) @db.Timestamptz(6)
+  permissions   permissions @relation(fields: [permission_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_role_permissions_permission")
+  roles         roles       @relation(fields: [role_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_role_permissions_role")
+
+  @@id([role_id, permission_id])
+  @@schema("core")
+}
+
+model roles {
+  id               String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name             String             @unique(map: "unique_role_name") @db.VarChar(100)
+  description      String?
+  is_system_role   Boolean            @default(false)
+  created_at       DateTime           @default(now()) @db.Timestamptz(6)
+  updated_at       DateTime           @default(now()) @db.Timestamptz(6)
+  role_permissions role_permissions[]
+  user_roles       user_roles[]
+  membership_roles membership_roles[]
+
+  @@schema("core")
+}
+
+model user_roles {
+  user_id     String   @db.Uuid
+  role_id     String   @db.Uuid
+  assigned_at DateTime @default(now()) @db.Timestamptz(6)
+  roles       roles    @relation(fields: [role_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_user_roles_role")
+  users       users    @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_user_roles_user")
+
+  @@id([user_id, role_id])
+  @@schema("core")
+}
+
+model users {
+  id             String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  first_name     String          @db.VarChar(100)
+  last_name      String          @db.VarChar(100)
+  email          String          @unique @db.VarChar(255)
+  phone          String?         @db.VarChar(30)
+  password_hash  String
+  is_active      Boolean         @default(true)
+  email_verified Boolean         @default(false)
+  last_login_at  DateTime?       @db.Timestamptz(6)
+  created_at     DateTime        @default(now()) @db.Timestamptz(6)
+  updated_at     DateTime        @default(now()) @db.Timestamptz(6)
+  activity_logs  activity_logs[]
+  security_logs  security_logs[]
+  user_roles     user_roles[]
+  memberships    memberships[]
+
+  @@schema("core")
+}
+
+model departments {
+  id                     String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organization_id        String                   @db.Uuid
+  name                   String                   @db.VarChar(150)
+  code                   String?                  @db.VarChar(50)
+  description            String?
+  parent_department_id   String?                  @db.Uuid
+  is_active              Boolean                  @default(true)
+  created_at             DateTime                 @default(now()) @db.Timestamptz(6)
+  updated_at             DateTime                 @default(now()) @db.Timestamptz(6)
+  organizations          organizations            @relation(fields: [organization_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_department_organization")
+  departments            departments?             @relation("departmentsTodepartments", fields: [parent_department_id], references: [id], onUpdate: NoAction, map: "fk_parent_department")
+  other_departments      departments[]            @relation("departmentsTodepartments")
+  membership_departments membership_departments[]
+
+  @@unique([organization_id, name], map: "unique_department_name")
+  @@schema("organization")
+}
+
+model membership_departments {
+  membership_id String      @db.Uuid
+  department_id String      @db.Uuid
+  is_primary    Boolean     @default(false)
+  assigned_at   DateTime    @default(now()) @db.Timestamptz(6)
+  departments   departments @relation(fields: [department_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_membership_departments_department")
+  memberships   memberships @relation(fields: [membership_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_membership_departments_membership")
+
+  @@id([membership_id, department_id])
+  @@schema("organization")
+}
+
+model membership_roles {
+  membership_id String      @db.Uuid
+  role_id       String      @db.Uuid
+  assigned_at   DateTime    @default(now()) @db.Timestamptz(6)
+  memberships   memberships @relation(fields: [membership_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_membership_roles_membership")
+  roles         roles       @relation(fields: [role_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_membership_roles_role")
+
+  @@id([membership_id, role_id])
+  @@schema("organization")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model memberships {
+  id                     String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organization_id        String                   @db.Uuid
+  user_id                String                   @db.Uuid
+  status                 String                   @default("active") @db.VarChar(30)
+  joined_at              DateTime                 @default(now()) @db.Timestamptz(6)
+  left_at                DateTime?                @db.Timestamptz(6)
+  created_at             DateTime                 @default(now()) @db.Timestamptz(6)
+  updated_at             DateTime                 @default(now()) @db.Timestamptz(6)
+  membership_departments membership_departments[]
+  membership_roles       membership_roles[]
+  organizations          organizations            @relation(fields: [organization_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_membership_organization")
+  users                  users                    @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_membership_user")
+
+  @@unique([organization_id, user_id], map: "unique_organization_user")
+  @@schema("organization")
+}
+
+model organizations {
+  id            String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name          String          @db.VarChar(200)
+  slug          String          @unique @db.VarChar(150)
+  description   String?
+  email         String?         @db.VarChar(255)
+  phone         String?         @db.VarChar(30)
+  website       String?         @db.VarChar(255)
+  logo_url      String?
+  is_active     Boolean         @default(true)
+  created_at    DateTime        @default(now()) @db.Timestamptz(6)
+  updated_at    DateTime        @default(now()) @db.Timestamptz(6)
+  activity_logs activity_logs[]
+  security_logs security_logs[]
+  departments   departments[]
+  memberships   memberships[]
+  settings      settings[]
+
+  @@schema("organization")
+}
+
+model settings {
+  id              String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organization_id String?        @db.Uuid
+  setting_key     String         @db.VarChar(150)
+  setting_value   String?
+  description     String?
+  is_public       Boolean        @default(false)
+  created_at      DateTime       @default(now()) @db.Timestamptz(6)
+  updated_at      DateTime       @default(now()) @db.Timestamptz(6)
+  organizations   organizations? @relation(fields: [organization_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_settings_organization")
+
+  @@unique([organization_id, setting_key], map: "unique_organization_setting")
+  @@schema("platform")
+}
