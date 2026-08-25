@@ -3,17 +3,23 @@ import {
   Controller,
   Get,
   Param,
+  ParseUUIDPipe,
   Patch,
   Post,
   UseGuards,
 } from '@nestjs/common';
 
-import { OrganizationsService } from './organizations.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { RolesGuard } from '../auth/roles.guard';
-import { Roles } from '../auth/roles.decorator';
-import { PermissionsGuard } from '../auth/permissions.guard';
 import { Permissions } from '../auth/permissions.decorator';
+import { PermissionsGuard } from '../auth/permissions.guard';
+import { Roles } from '../auth/roles.decorator';
+import { RolesGuard } from '../auth/roles.guard';
+
+import { CreateOrganizationDto } from './dto/create-organization.dto';
+import { UpdateOrganizationDto } from './dto/update-organization.dto';
+import { UpdateOrganizationStatusDto } from './dto/update-organization-status.dto';
+
+import { OrganizationsService } from './organizations.service';
 
 @Controller('organizations')
 @UseGuards(
@@ -33,17 +39,7 @@ export class OrganizationsController {
 
   @Post()
   @Permissions('organizations.create')
-  create(
-    @Body()
-    body: {
-      name: string;
-      slug: string;
-      description?: string;
-      email?: string;
-      phone?: string;
-      website?: string;
-    },
-  ) {
+  create(@Body() body: CreateOrganizationDto) {
     return this.organizationsService.create(body);
   }
 
@@ -63,7 +59,15 @@ export class OrganizationsController {
 
   @Get(':id')
   @Permissions('organizations.read')
-  findOne(@Param('id') id: string) {
+  findOne(
+    @Param(
+      'id',
+      new ParseUUIDPipe({
+        errorHttpStatusCode: 400,
+      }),
+    )
+    id: string,
+  ) {
     return this.organizationsService.findOne(id);
   }
 
@@ -74,17 +78,14 @@ export class OrganizationsController {
   @Patch(':id')
   @Permissions('organizations.update')
   update(
-    @Param('id') id: string,
-    @Body()
-    body: {
-      name?: string;
-      slug?: string;
-      description?: string;
-      email?: string;
-      phone?: string;
-      website?: string;
-      logo_url?: string;
-    },
+    @Param(
+      'id',
+      new ParseUUIDPipe({
+        errorHttpStatusCode: 400,
+      }),
+    )
+    id: string,
+    @Body() body: UpdateOrganizationDto,
   ) {
     return this.organizationsService.update(
       id,
@@ -99,8 +100,14 @@ export class OrganizationsController {
   @Patch(':id/status')
   @Permissions('organizations.update')
   updateStatus(
-    @Param('id') id: string,
-    @Body() body: { is_active: boolean },
+    @Param(
+      'id',
+      new ParseUUIDPipe({
+        errorHttpStatusCode: 400,
+      }),
+    )
+    id: string,
+    @Body() body: UpdateOrganizationStatusDto,
   ) {
     return this.organizationsService.updateStatus(
       id,

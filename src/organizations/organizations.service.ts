@@ -1,4 +1,5 @@
 import {
+  ConflictException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -9,6 +10,10 @@ import { PrismaService } from '../prisma/prisma.service';
 export class OrganizationsService {
   constructor(private readonly prisma: PrismaService) {}
 
+  // --------------------------------------------------
+  // CREATE ORGANIZATION
+  // --------------------------------------------------
+
   async create(data: {
     name: string;
     slug: string;
@@ -16,11 +21,37 @@ export class OrganizationsService {
     email?: string;
     phone?: string;
     website?: string;
+    logo_url?: string;
   }) {
+    const existingOrganization =
+      await this.prisma.organizations.findUnique({
+        where: {
+          slug: data.slug,
+        },
+      });
+
+    if (existingOrganization) {
+      throw new ConflictException(
+        'An organization with this slug already exists.',
+      );
+    }
+
     return this.prisma.organizations.create({
-      data,
+      data: {
+        name: data.name,
+        slug: data.slug,
+        description: data.description,
+        email: data.email,
+        phone: data.phone,
+        website: data.website,
+        logo_url: data.logo_url,
+      },
     });
   }
+
+  // --------------------------------------------------
+  // LIST ORGANIZATIONS
+  // --------------------------------------------------
 
   async findAll() {
     return this.prisma.organizations.findMany({
@@ -29,6 +60,10 @@ export class OrganizationsService {
       },
     });
   }
+
+  // --------------------------------------------------
+  // GET ONE ORGANIZATION
+  // --------------------------------------------------
 
   async findOne(id: string) {
     const organization =
@@ -47,6 +82,10 @@ export class OrganizationsService {
     return organization;
   }
 
+  // --------------------------------------------------
+  // UPDATE ORGANIZATION
+  // --------------------------------------------------
+
   async update(
     id: string,
     data: {
@@ -59,7 +98,31 @@ export class OrganizationsService {
       logo_url?: string;
     },
   ) {
-    await this.findOne(id);
+    const organization = await this.findOne(id);
+
+    if (Object.keys(data).length === 0) {
+      throw new ConflictException(
+        'At least one organization field must be provided.',
+      );
+    }
+
+    if (data.slug && data.slug !== organization.slug) {
+      const existingOrganization =
+        await this.prisma.organizations.findUnique({
+          where: {
+            slug: data.slug,
+          },
+        });
+
+      if (
+        existingOrganization &&
+        existingOrganization.id !== id
+      ) {
+        throw new ConflictException(
+          'An organization with this slug already exists.',
+        );
+      }
+    }
 
     return this.prisma.organizations.update({
       where: {
@@ -69,9 +132,13 @@ export class OrganizationsService {
     });
   }
 
+  // --------------------------------------------------
+  // UPDATE ORGANIZATION STATUS
+  // --------------------------------------------------
+
   async updateStatus(
     id: string,
-    is_active: boolean,
+    isActive: boolean,
   ) {
     await this.findOne(id);
 
@@ -80,7 +147,7 @@ export class OrganizationsService {
         id,
       },
       data: {
-        is_active,
+        is_active: isActive,
       },
     });
   }
