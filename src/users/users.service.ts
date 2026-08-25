@@ -3,13 +3,17 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+
 import * as bcrypt from 'bcrypt';
 import { randomUUID } from 'crypto';
+
 import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
 export class UsersService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+  ) {}
 
   // --------------------------------------------------
   // LIST USERS
@@ -20,6 +24,7 @@ export class UsersService {
       orderBy: {
         created_at: 'desc',
       },
+
       select: {
         id: true,
         first_name: true,
@@ -30,6 +35,7 @@ export class UsersService {
         email_verified: true,
         created_at: true,
         updated_at: true,
+
         user_roles: {
           include: {
             roles: true,
@@ -48,6 +54,7 @@ export class UsersService {
       email_verified: user.email_verified,
       created_at: user.created_at,
       updated_at: user.updated_at,
+
       roles: user.user_roles.map(
         (userRole) => userRole.roles.name,
       ),
@@ -63,6 +70,7 @@ export class UsersService {
       where: {
         id,
       },
+
       select: {
         id: true,
         first_name: true,
@@ -101,7 +109,9 @@ export class UsersService {
     });
 
     if (!user) {
-      throw new NotFoundException('User not found.');
+      throw new NotFoundException(
+        'User not found.',
+      );
     }
 
     return {
@@ -256,6 +266,7 @@ export class UsersService {
           },
         },
       },
+
       select: {
         id: true,
         first_name: true,
@@ -275,6 +286,7 @@ export class UsersService {
 
     return {
       message: 'User created successfully.',
+
       user: {
         ...user,
         role: role.name,
@@ -307,9 +319,11 @@ export class UsersService {
       where: {
         id,
       },
+
       data: {
         is_active: isActive,
       },
+
       select: {
         id: true,
         first_name: true,
@@ -380,6 +394,7 @@ export class UsersService {
             where: {
               id,
             },
+
             select: {
               id: true,
               first_name: true,
@@ -409,6 +424,7 @@ export class UsersService {
 
     return {
       message: 'User role updated successfully.',
+
       user: {
         id: updatedUser.id,
         first_name: updatedUser.first_name,
@@ -419,162 +435,10 @@ export class UsersService {
         email_verified: updatedUser.email_verified,
         created_at: updatedUser.created_at,
         updated_at: updatedUser.updated_at,
+
         role:
           updatedUser.user_roles[0]?.roles.name,
       },
-    };
-  }
-
-  // --------------------------------------------------
-  // CREATE ORGANIZATION MEMBERSHIP
-  // --------------------------------------------------
-
-  async createMembership(data: {
-    user_id: string;
-    organization_id: string;
-    department_id?: string;
-    role_id?: string;
-  }) {
-    const user = await this.prisma.users.findUnique({
-      where: {
-        id: data.user_id,
-      },
-    });
-
-    if (!user) {
-      throw new NotFoundException(
-        'User not found.',
-      );
-    }
-
-    const organization =
-      await this.prisma.organizations.findUnique({
-        where: {
-          id: data.organization_id,
-        },
-      });
-
-    if (!organization) {
-      throw new BadRequestException(
-        'Organization not found.',
-      );
-    }
-
-    const existingMembership =
-      await this.prisma.memberships.findUnique({
-        where: {
-          organization_id_user_id: {
-            organization_id: data.organization_id,
-            user_id: data.user_id,
-          },
-        },
-      });
-
-    if (existingMembership) {
-      throw new BadRequestException(
-        'User is already a member of this organization.',
-      );
-    }
-
-    // --------------------------------------------------
-    // VALIDATE DEPARTMENT
-    // --------------------------------------------------
-
-    if (data.department_id) {
-      const department =
-        await this.prisma.departments.findUnique({
-          where: {
-            id: data.department_id,
-          },
-        });
-
-      if (!department) {
-        throw new BadRequestException(
-          'Department not found.',
-        );
-      }
-
-      if (
-        department.organization_id !==
-        data.organization_id
-      ) {
-        throw new BadRequestException(
-          'Department does not belong to this organization.',
-        );
-      }
-    }
-
-    // --------------------------------------------------
-    // VALIDATE ROLE
-    // --------------------------------------------------
-
-    if (data.role_id) {
-      const role = await this.prisma.roles.findUnique({
-        where: {
-          id: data.role_id,
-        },
-      });
-
-      if (!role) {
-        throw new BadRequestException(
-          'Role not found.',
-        );
-      }
-    }
-
-    // --------------------------------------------------
-    // CREATE MEMBERSHIP
-    // --------------------------------------------------
-
-    const membership =
-      await this.prisma.memberships.create({
-        data: {
-          id: randomUUID(),
-          organization_id: data.organization_id,
-          user_id: data.user_id,
-          status: 'active',
-
-          membership_departments:
-            data.department_id
-              ? {
-                  create: {
-                    department_id:
-                      data.department_id,
-                    is_primary: true,
-                  },
-                }
-              : undefined,
-
-          membership_roles: data.role_id
-            ? {
-                create: {
-                  role_id: data.role_id,
-                },
-              }
-            : undefined,
-        },
-
-        include: {
-          organizations: true,
-
-          membership_departments: {
-            include: {
-              departments: true,
-            },
-          },
-
-          membership_roles: {
-            include: {
-              roles: true,
-            },
-          },
-        },
-      });
-
-    return {
-      message:
-        'Organization membership created successfully.',
-      membership,
     };
   }
 }

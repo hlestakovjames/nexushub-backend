@@ -6,6 +6,7 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 
@@ -15,36 +16,52 @@ import { PermissionsGuard } from '../auth/permissions.guard';
 import { Roles } from '../auth/roles.decorator';
 import { RolesGuard } from '../auth/roles.guard';
 
-import { CreateUserDto } from './dto/create-user.dto';
-import { UpdateUserRoleDto } from './dto/update-user-role.dto';
-import { UpdateUserStatusDto } from './dto/update-user-status.dto';
+import { CreateMembershipDto } from './dto/create-membership.dto';
+import { UpdateMembershipStatusDto } from './dto/update-membership-status.dto';
 
-import { UsersService } from './users.service';
+import { MembershipsService } from './memberships.service';
 
-@Controller('users')
+@Controller('memberships')
 @UseGuards(
   JwtAuthGuard,
   RolesGuard,
   PermissionsGuard,
 )
 @Roles('Global Admin')
-export class UsersController {
+export class MembershipsController {
   constructor(
-    private readonly usersService: UsersService,
+    private readonly membershipsService: MembershipsService,
   ) {}
 
   // --------------------------------------------------
-  // LIST USERS
+  // CREATE MEMBERSHIP
+  // --------------------------------------------------
+
+  @Post()
+  @Permissions('users.update')
+  create(
+    @Body() body: CreateMembershipDto,
+  ) {
+    return this.membershipsService.create(body);
+  }
+
+  // --------------------------------------------------
+  // LIST MEMBERSHIPS
   // --------------------------------------------------
 
   @Get()
   @Permissions('users.read')
-  findAll() {
-    return this.usersService.findAll();
+  findAll(
+    @Query('organization_id')
+    organizationId?: string,
+  ) {
+    return this.membershipsService.findAll(
+      organizationId,
+    );
   }
 
   // --------------------------------------------------
-  // GET ONE USER
+  // GET ONE MEMBERSHIP
   // --------------------------------------------------
 
   @Get(':id')
@@ -58,21 +75,11 @@ export class UsersController {
     )
     id: string,
   ) {
-    return this.usersService.findOne(id);
+    return this.membershipsService.findOne(id);
   }
 
   // --------------------------------------------------
-  // CREATE USER
-  // --------------------------------------------------
-
-  @Post()
-  @Permissions('users.create')
-  create(@Body() body: CreateUserDto) {
-    return this.usersService.create(body);
-  }
-
-  // --------------------------------------------------
-  // UPDATE USER STATUS
+  // UPDATE MEMBERSHIP STATUS
   // --------------------------------------------------
 
   @Patch(':id/status')
@@ -85,33 +92,12 @@ export class UsersController {
       }),
     )
     id: string,
-    @Body() body: UpdateUserStatusDto,
+    @Body()
+    body: UpdateMembershipStatusDto,
   ) {
-    return this.usersService.updateStatus(
+    return this.membershipsService.updateStatus(
       id,
-      body.is_active,
-    );
-  }
-
-  // --------------------------------------------------
-  // UPDATE USER GLOBAL ROLE
-  // --------------------------------------------------
-
-  @Patch(':id/role')
-  @Permissions('users.update')
-  updateRole(
-    @Param(
-      'id',
-      new ParseUUIDPipe({
-        errorHttpStatusCode: 400,
-      }),
-    )
-    id: string,
-    @Body() body: UpdateUserRoleDto,
-  ) {
-    return this.usersService.updateRole(
-      id,
-      body.role_id,
+      body.status,
     );
   }
 }
