@@ -1,5 +1,4 @@
 import {
-  BadRequestException,
   Body,
   Controller,
   Get,
@@ -10,12 +9,18 @@ import {
   UseGuards,
 } from '@nestjs/common';
 
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { Permissions } from '../auth/permissions.decorator';
 import { PermissionsGuard } from '../auth/permissions.guard';
-import { UsersService } from './users.service';
-import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
+import { RolesGuard } from '../auth/roles.guard';
+
+import { CreateMembershipDto } from './dto/create-membership.dto';
+import { CreateUserDto } from './dto/create-user.dto';
+import { UpdateUserRoleDto } from './dto/update-user-role.dto';
+import { UpdateUserStatusDto } from './dto/update-user-status.dto';
+
+import { UsersService } from './users.service';
 
 @Controller('users')
 @UseGuards(
@@ -37,18 +42,6 @@ export class UsersController {
   @Permissions('users.read')
   findAll() {
     return this.usersService.findAll();
-  }
-
-  // --------------------------------------------------
-  // PERMISSION TEST
-  // --------------------------------------------------
-
-  @Get('permission-test')
-  @Permissions('users.test')
-  permissionTest() {
-    return {
-      message: 'Permission test passed.',
-    };
   }
 
   // --------------------------------------------------
@@ -75,17 +68,7 @@ export class UsersController {
 
   @Post()
   @Permissions('users.create')
-  create(
-    @Body()
-    body: {
-      first_name: string;
-      last_name: string;
-      email: string;
-      phone?: string;
-      password: string;
-      role_id: string;
-    },
-  ) {
+  create(@Body() body: CreateUserDto) {
     return this.usersService.create(body);
   }
 
@@ -103,14 +86,8 @@ export class UsersController {
       }),
     )
     id: string,
-    @Body() body: { is_active: boolean },
+    @Body() body: UpdateUserStatusDto,
   ) {
-    if (typeof body.is_active !== 'boolean') {
-      throw new BadRequestException(
-        'is_active must be a boolean.',
-      );
-    }
-
     return this.usersService.updateStatus(
       id,
       body.is_active,
@@ -131,14 +108,8 @@ export class UsersController {
       }),
     )
     id: string,
-    @Body() body: { role_id: string },
+    @Body() body: UpdateUserRoleDto,
   ) {
-    if (!body.role_id) {
-      throw new BadRequestException(
-        'role_id is required.',
-      );
-    }
-
     return this.usersService.updateRole(
       id,
       body.role_id,
@@ -159,12 +130,7 @@ export class UsersController {
       }),
     )
     user_id: string,
-    @Body()
-    body: {
-      organization_id: string;
-      department_id?: string;
-      role_id?: string;
-    },
+    @Body() body: CreateMembershipDto,
   ) {
     return this.usersService.createMembership({
       user_id,
