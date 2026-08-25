@@ -323,7 +323,8 @@ export class UsersService {
       },
     });
   }
-    // --------------------------------------------------
+
+  // --------------------------------------------------
   // UPDATE USER GLOBAL ROLE
   // --------------------------------------------------
 
@@ -355,59 +356,75 @@ export class UsersService {
       );
     }
 
-    await this.prisma.user_roles.deleteMany({
-      where: {
-        user_id: id,
-      },
-    });
-
-    await this.prisma.user_roles.create({
-      data: {
-        user_id: id,
-        role_id: role.id,
-      },
-    });
+    // --------------------------------------------------
+    // ATOMIC ROLE REPLACEMENT
+    // --------------------------------------------------
 
     const updatedUser =
-      await this.prisma.users.findUnique({
-        where: {
-          id,
-        },
-        select: {
-          id: true,
-          first_name: true,
-          last_name: true,
-          email: true,
-          phone: true,
-          is_active: true,
-          email_verified: true,
-          created_at: true,
-          updated_at: true,
-
-          user_roles: {
-            include: {
-              roles: true,
+      await this.prisma.$transaction(
+        async (tx) => {
+          await tx.user_roles.deleteMany({
+            where: {
+              user_id: id,
             },
-          },
+          });
+
+          await tx.user_roles.create({
+            data: {
+              user_id: id,
+              role_id: role.id,
+            },
+          });
+
+          return tx.users.findUnique({
+            where: {
+              id,
+            },
+            select: {
+              id: true,
+              first_name: true,
+              last_name: true,
+              email: true,
+              phone: true,
+              is_active: true,
+              email_verified: true,
+              created_at: true,
+              updated_at: true,
+
+              user_roles: {
+                include: {
+                  roles: true,
+                },
+              },
+            },
+          });
         },
-      });
+      );
+
+    if (!updatedUser) {
+      throw new NotFoundException(
+        'User not found.',
+      );
+    }
 
     return {
       message: 'User role updated successfully.',
       user: {
-        id: updatedUser!.id,
-        first_name: updatedUser!.first_name,
-        last_name: updatedUser!.last_name,
-        email: updatedUser!.email,
-        phone: updatedUser!.phone,
-        is_active: updatedUser!.is_active,
-        email_verified: updatedUser!.email_verified,
-        created_at: updatedUser!.created_at,
-        updated_at: updatedUser!.updated_at,
-        role: updatedUser!.user_roles[0]?.roles.name,
+        id: updatedUser.id,
+        first_name: updatedUser.first_name,
+        last_name: updatedUser.last_name,
+        email: updatedUser.email,
+        phone: updatedUser.phone,
+        is_active: updatedUser.is_active,
+        email_verified: updatedUser.email_verified,
+        created_at: updatedUser.created_at,
+        updated_at: updatedUser.updated_at,
+        role:
+          updatedUser.user_roles[0]?.roles.name,
       },
     };
   }
+
   // --------------------------------------------------
   // CREATE ORGANIZATION MEMBERSHIP
   // --------------------------------------------------
