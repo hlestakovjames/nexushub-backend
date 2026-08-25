@@ -1,9 +1,19 @@
-import { Injectable } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+
 import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
 export class RolesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+  ) {}
+
+  // --------------------------------------------------
+  // LIST ROLES
+  // --------------------------------------------------
 
   async findAll() {
     return this.prisma.roles.findMany({
@@ -20,8 +30,12 @@ export class RolesService {
     });
   }
 
+  // --------------------------------------------------
+  // GET ONE ROLE
+  // --------------------------------------------------
+
   async findOne(id: string) {
-    return this.prisma.roles.findUnique({
+    const role = await this.prisma.roles.findUnique({
       where: {
         id,
       },
@@ -33,5 +47,13 @@ export class RolesService {
         },
       },
     });
+
+    if (!role) {
+      throw new NotFoundException(
+        'Role not found.',
+      );
+    }
+
+    return role;
   }
 }
