@@ -7,6 +7,7 @@ import {
   Patch,
   Post,
   Query,
+  Req,
   UseGuards,
 } from '@nestjs/common';
 
@@ -41,8 +42,12 @@ export class MembershipsController {
   @Permissions('memberships.create')
   create(
     @Body() body: CreateMembershipDto,
+    @Req() request: any,
   ) {
-    return this.membershipsService.create(body);
+    return this.membershipsService.create(
+      body,
+      request.user.userId,
+    );
   }
 
   // --------------------------------------------------
@@ -94,10 +99,12 @@ export class MembershipsController {
     id: string,
     @Body()
     body: UpdateMembershipStatusDto,
+    @Req() request: any,
   ) {
     return this.membershipsService.updateStatus(
       id,
       body.status,
+      request.user.userId,
     );
   }
 }

@@ -5,23 +5,32 @@ import {
 } from '@nestjs/common';
 
 import { PrismaService } from '../prisma/prisma.service';
+import { AuditService } from '../audit/audit.service';
 
 @Injectable()
 export class MembershipsService {
   constructor(
     private readonly prisma: PrismaService,
+    private readonly auditService: AuditService,
   ) {}
 
   // --------------------------------------------------
   // CREATE MEMBERSHIP
   // --------------------------------------------------
 
-  async create(data: {
-    user_id: string;
-    organization_id: string;
-    department_id?: string;
-    role_id?: string;
-  }) {
+  async create(
+    data: {
+      user_id: string;
+      organization_id: string;
+      department_id?: string;
+      role_id?: string;
+    },
+    actorUserId: string,
+  ) {
+    // --------------------------------------------------
+    // VALIDATE USER
+    // --------------------------------------------------
+
     const user =
       await this.prisma.users.findUnique({
         where: {
@@ -35,6 +44,10 @@ export class MembershipsService {
       );
     }
 
+    // --------------------------------------------------
+    // VALIDATE ORGANIZATION
+    // --------------------------------------------------
+
     const organization =
       await this.prisma.organizations.findUnique({
         where: {
@@ -47,6 +60,10 @@ export class MembershipsService {
         'Organization not found.',
       );
     }
+
+    // --------------------------------------------------
+    // CHECK EXISTING MEMBERSHIP
+    // --------------------------------------------------
 
     const existingMembership =
       await this.prisma.memberships.findUnique({
@@ -122,7 +139,8 @@ export class MembershipsService {
           organization_id:
             data.organization_id,
 
-          user_id: data.user_id,
+          user_id:
+            data.user_id,
 
           status: 'active',
 
@@ -141,7 +159,8 @@ export class MembershipsService {
             data.role_id
               ? {
                   create: {
-                    role_id: data.role_id,
+                    role_id:
+                      data.role_id,
                   },
                 }
               : undefined,
@@ -164,9 +183,55 @@ export class MembershipsService {
         },
       });
 
+    // --------------------------------------------------
+    // AUDIT LOG
+    // --------------------------------------------------
+
+    await this.auditService.logActivity({
+      organization_id:
+        data.organization_id,
+
+      user_id:
+        actorUserId,
+
+      action:
+        'MEMBERSHIP_CREATED',
+
+      module:
+        'memberships',
+
+      entity_type:
+        'membership',
+
+      entity_id:
+        membership.id,
+
+      description:
+        'Organization membership created.',
+
+      metadata: {
+        member_user_id:
+          data.user_id,
+
+        department_id:
+          data.department_id ?? null,
+
+        role_id:
+          data.role_id ?? null,
+
+        status:
+          'active',
+      },
+    });
+
+    // --------------------------------------------------
+    // RESPONSE
+    // --------------------------------------------------
+
     return {
       message:
         'Organization membership created successfully.',
+
       membership,
     };
   }
@@ -178,6 +243,10 @@ export class MembershipsService {
   async findAll(
     organizationId?: string,
   ) {
+    // --------------------------------------------------
+    // VALIDATE ORGANIZATION FILTER
+    // --------------------------------------------------
+
     if (organizationId) {
       const organization =
         await this.prisma.organizations.findUnique({
@@ -193,6 +262,10 @@ export class MembershipsService {
       }
     }
 
+    // --------------------------------------------------
+    // FETCH MEMBERSHIPS
+    // --------------------------------------------------
+
     return this.prisma.memberships.findMany({
       where: organizationId
         ? {
@@ -202,7 +275,8 @@ export class MembershipsService {
         : undefined,
 
       orderBy: {
-        created_at: 'desc',
+        created_at:
+          'desc',
       },
 
       include: {
@@ -238,7 +312,9 @@ export class MembershipsService {
   // GET ONE MEMBERSHIP
   // --------------------------------------------------
 
-  async findOne(id: string) {
+  async findOne(
+    id: string,
+  ) {
     const membership =
       await this.prisma.memberships.findUnique({
         where: {
@@ -289,8 +365,33 @@ export class MembershipsService {
   async updateStatus(
     id: string,
     status: string,
+    actorUserId: string,
   ) {
-    await this.findOne(id);
+    // --------------------------------------------------
+    // GET EXISTING MEMBERSHIP
+    // --------------------------------------------------
+
+    const existingMembership =
+      await this.findOne(id);
+
+    const previousStatus =
+      existingMembership.status;
+
+    // --------------------------------------------------
+    // PREVENT UNNECESSARY UPDATE
+    // --------------------------------------------------
+
+    if (
+      previousStatus === status
+    ) {
+      throw new ConflictException(
+        `Membership is already ${status}.`,
+      );
+    }
+
+    // --------------------------------------------------
+    // PREPARE STATUS UPDATE
+    // --------------------------------------------------
 
     const updateData: {
       status: string;
@@ -300,30 +401,82 @@ export class MembershipsService {
     };
 
     if (status === 'left') {
-      updateData.left_at = new Date();
+      updateData.left_at =
+        new Date();
     } else {
-      updateData.left_at = null;
+      updateData.left_at =
+        null;
     }
 
-    return this.prisma.memberships.update({
-      where: {
-        id,
-      },
+    // --------------------------------------------------
+    // UPDATE MEMBERSHIP
+    // --------------------------------------------------
 
-      data: updateData,
-
-      include: {
-        users: {
-          select: {
-            id: true,
-            first_name: true,
-            last_name: true,
-            email: true,
-          },
+    const updatedMembership =
+      await this.prisma.memberships.update({
+        where: {
+          id,
         },
 
-        organizations: true,
+        data:
+          updateData,
+
+        include: {
+          users: {
+            select: {
+              id: true,
+              first_name: true,
+              last_name: true,
+              email: true,
+            },
+          },
+
+          organizations: true,
+        },
+      });
+
+    // --------------------------------------------------
+    // AUDIT LOG
+    // --------------------------------------------------
+
+    await this.auditService.logActivity({
+      organization_id:
+        updatedMembership.organization_id,
+
+      user_id:
+        actorUserId,
+
+      action:
+        'MEMBERSHIP_STATUS_UPDATED',
+
+      module:
+        'memberships',
+
+      entity_type:
+        'membership',
+
+      entity_id:
+        updatedMembership.id,
+
+      description:
+        'Organization membership status updated.',
+
+      metadata: {
+        previous_status:
+          previousStatus,
+
+        new_status:
+          status,
+
+        member_user_id:
+          existingMembership.user_id,
       },
     });
+
+    // --------------------------------------------------
+    // RESPONSE
+    // --------------------------------------------------
+
+    return updatedMembership;
   }
 }
