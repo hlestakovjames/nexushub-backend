@@ -27,7 +27,11 @@ async function main() {
     where: {
       slug: 'nexus-hub',
     },
-    update: {},
+    update: {
+      name: 'Nexus Hub',
+      description: 'Nexus Hub digital innovation ecosystem',
+      is_active: true,
+    },
     create: {
       id: randomUUID(),
       name: 'Nexus Hub',
@@ -49,14 +53,14 @@ async function main() {
     },
     update: {
       description:
-        'Full administrative access across the Nexus Hub ecosystem',
+        'System owner with full administrative access across the entire Nexus Hub ecosystem',
       is_system_role: true,
     },
     create: {
       id: randomUUID(),
       name: 'Global Admin',
       description:
-        'Full administrative access across the Nexus Hub ecosystem',
+        'System owner with full administrative access across the entire Nexus Hub ecosystem',
       is_system_role: true,
     },
   });
@@ -198,10 +202,10 @@ async function main() {
   console.log('Global Admin permissions assigned.');
 
   // --------------------------------------------------
-  // 5. INITIAL GLOBAL ADMIN USER
+  // 5. SYSTEM OWNER / GLOBAL ADMIN USER
   // --------------------------------------------------
 
-  const email = 'admin@nexushub.co.ke';
+  const email = 'khlestakov.james@gmail.com';
   const password = 'NexusAdmin123!';
 
   const passwordHash = await bcrypt.hash(password, 12);
@@ -211,16 +215,19 @@ async function main() {
       email,
     },
     update: {
-      first_name: 'Nexus',
-      last_name: 'Admin',
+      first_name: 'Hlestakov',
+      last_name: 'James',
+      phone: '0713290745',
+      password_hash: passwordHash,
       is_active: true,
       email_verified: true,
     },
     create: {
       id: randomUUID(),
-      first_name: 'Nexus',
-      last_name: 'Admin',
+      first_name: 'Hlestakov',
+      last_name: 'James',
       email,
+      phone: '0713290745',
       password_hash: passwordHash,
       is_active: true,
       email_verified: true,
@@ -247,6 +254,8 @@ async function main() {
     },
   });
 
+  console.log('Global Admin role assigned.');
+
   // --------------------------------------------------
   // 7. ORGANIZATION MEMBERSHIP
   // --------------------------------------------------
@@ -269,8 +278,10 @@ async function main() {
     },
   });
 
+  console.log('Global Admin organization membership ready.');
+
   // --------------------------------------------------
-  // 8. MEMBERSHIP ROLE
+  // 8. GLOBAL ADMIN MEMBERSHIP ROLE
   // --------------------------------------------------
 
   await prisma.membership_roles.upsert({
@@ -287,14 +298,20 @@ async function main() {
     },
   });
 
-  console.log('Global Admin membership configured.');
+  console.log('Global Admin membership role configured.');
+
+  // --------------------------------------------------
+  // 9. FINAL BOOTSTRAP SUMMARY
+  // --------------------------------------------------
 
   console.log('');
   console.log('======================================');
   console.log(' Nexus Hub Bootstrap Complete');
   console.log('======================================');
   console.log(`Organization: ${organization.name}`);
-  console.log(`Admin email:  ${email}`);
+  console.log(`System Owner: ${user.first_name} ${user.last_name}`);
+  console.log(`Admin email:  ${user.email}`);
+  console.log(`Admin phone:  ${user.phone}`);
   console.log('Admin role:   Global Admin');
   console.log('======================================');
 }
