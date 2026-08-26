@@ -7,6 +7,7 @@ import { AuthService } from './auth.service';
 import { JwtStrategy } from './jwt.strategy';
 import { RolesGuard } from './roles.guard';
 import { PermissionsGuard } from './permissions.guard';
+import { SecurityModule } from '../security/security.module';
 
 @Module({
   imports: [
@@ -19,6 +20,8 @@ import { PermissionsGuard } from './permissions.guard';
         expiresIn: '1h',
       },
     }),
+
+    SecurityModule,
   ],
 
   controllers: [

@@ -36,10 +36,14 @@ export class AuthController {
   // --------------------------------------------------
 
   @Post('login')
-  login(@Body() body: LoginDto) {
+  login(
+    @Body() body: LoginDto,
+    @Req() request:any,
+  ) {
     return this.authService.login(
       body.email,
       body.password,
+      request,
     );
   }
 

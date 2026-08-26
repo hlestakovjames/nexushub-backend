@@ -8,12 +8,14 @@ import * as bcrypt from 'bcrypt';
 
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateAccountDto } from './dto/create-account.dto';
+import { SecurityService } from '../security/security.service';
 
 @Injectable()
 export class AuthService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
+    private readonly securityService: SecurityService,
   ) {}
 
   // --------------------------------------------------
@@ -178,6 +180,7 @@ export class AuthService {
   async login(
     email: string,
     password: string,
+    request?: any,
   ) {
     const normalizedEmail =
       email?.toLowerCase().trim();
@@ -200,6 +203,17 @@ export class AuthService {
       });
 
     if (!user) {
+      await this.securityService.log({
+        event_type: 'LOGIN_FAILED',
+        success: false,
+        ip_address: request?.ip,
+        user_agent: request?.['user-agent'],
+        details: {
+          email: normalizedEmail,
+          reason: 'INVALID_CREDENTIALS',
+        },
+      });
+
       throw new UnauthorizedException(
         'Invalid email or password.',
       );
@@ -210,6 +224,17 @@ export class AuthService {
     // --------------------------------------------------
 
     if (!user.is_active) {
+      await this.securityService.log({
+        user_id: user.id,
+        event_type: 'ACCOUNT_INACTIVE',
+        success: false,
+        ip_address: request?.ip,
+        user_agent: request?.headers?.['user-agent'],
+        details: {
+          email: normalizedEmail,
+        },
+      });
+
       throw new UnauthorizedException(
         'This account is inactive.',
       );
@@ -226,6 +251,17 @@ export class AuthService {
       );
 
     if (!passwordValid) {
+      await this.securityService.log({
+        user_id: user.id,
+        event_type: 'LOGIN_FAILED',
+        success: false,
+        ip_address: request?.ip,
+        user_agent: request?.headers?.['user-agent'],
+        details: {
+          reason: 'INVALID_CREDENTIALS',
+        },
+      });
+
       throw new UnauthorizedException(
         'Invalid email or password.',
       );
@@ -246,6 +282,17 @@ export class AuthService {
       });
 
     if (!userRole) {
+      await this.securityService.log({
+        user_id: user.id,
+        event_type: 'NO_ROLE_ASSIGNED',
+        success: false,
+        ip_address: request?.ip,
+        user_agent: request?.headers?.['user-agent'],
+        details: {
+          email: normalizedEmail,
+        },
+      });
+
       throw new UnauthorizedException(
         'No role assigned to this account.',
       );
@@ -268,6 +315,17 @@ export class AuthService {
       await this.jwtService.signAsync(
         payload,
       );
+
+    await this.securityService.log({
+      user_id: user.id,
+      event_type: 'LOGIN_SUCCESS',
+      success: true,
+      ip_address: request?.ip,
+      user_agent: request?.headers?.['user-agent'],
+      details: {
+        role: userRole.roles.name,
+      },
+    });
 
     // --------------------------------------------------
     // RESPONSE

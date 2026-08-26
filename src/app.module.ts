@@ -11,6 +11,7 @@ import { UsersModule } from './users/users.module';
 import { RolesModule } from './roles/roles.module';
 import { MembershipsModule } from './memberships/memberships.module';
 import { AuditModule } from './audit/audit.module';
+import { SecurityModule } from './security/security.module';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { AuditModule } from './audit/audit.module';
     RolesModule,
     MembershipsModule,
     AuditModule,
+    SecurityModule,
   ],
 
   controllers: [
