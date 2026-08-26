@@ -20,17 +20,22 @@ import { PermissionsGuard } from './permissions.guard';
       },
     }),
   ],
-  controllers: [AuthController],
+
+  controllers: [
+    AuthController,
+  ],
+
   providers: [
-  AuthService,
-  JwtStrategy,
-  RolesGuard,
-  PermissionsGuard,
-],
+    AuthService,
+    JwtStrategy,
+    RolesGuard,
+    PermissionsGuard,
+  ],
+
   exports: [
-  AuthService,
-  RolesGuard,
-  PermissionsGuard,
-],
+    AuthService,
+    RolesGuard,
+    PermissionsGuard,
+  ],
 })
 export class AuthModule {}

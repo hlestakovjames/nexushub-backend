@@ -24,7 +24,4 @@ export class CreateAccountDto {
   @IsString()
   @MinLength(8)
   password: string;
-
-  @IsString()
-  role_id: string;
 }

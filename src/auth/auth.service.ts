@@ -4,8 +4,9 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-import { PrismaService } from '../prisma/prisma.service';
 import * as bcrypt from 'bcrypt';
+
+import { PrismaService } from '../prisma/prisma.service';
 import { CreateAccountDto } from './dto/create-account.dto';
 
 @Injectable()
@@ -15,12 +16,72 @@ export class AuthService {
     private readonly jwtService: JwtService,
   ) {}
 
+  // --------------------------------------------------
+  // CREATE ACCOUNT
+  // --------------------------------------------------
+
   async createAccount(dto: CreateAccountDto) {
-    const existingUser = await this.prisma.users.findUnique({
-      where: {
-        email: dto.email.toLowerCase(),
-      },
-    });
+    const firstName = dto.first_name?.trim();
+    const lastName = dto.last_name?.trim();
+    const email = dto.email?.toLowerCase().trim();
+    const phone = dto.phone?.trim();
+    const password = dto.password;
+
+    // --------------------------------------------------
+    // BASIC VALIDATION
+    // --------------------------------------------------
+
+    if (!firstName || !lastName) {
+      throw new BadRequestException(
+        'First name and last name are required.',
+      );
+    }
+
+    if (!email) {
+      throw new BadRequestException(
+        'Email address is required.',
+      );
+    }
+
+    if (!password) {
+      throw new BadRequestException(
+        'Password is required.',
+      );
+    }
+
+    // --------------------------------------------------
+    // EMAIL VALIDATION
+    // --------------------------------------------------
+
+    const emailPattern =
+      /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+    if (!emailPattern.test(email)) {
+      throw new BadRequestException(
+        'Please provide a valid email address.',
+      );
+    }
+
+    // --------------------------------------------------
+    // PASSWORD VALIDATION
+    // --------------------------------------------------
+
+    if (password.length < 8) {
+      throw new BadRequestException(
+        'Password must be at least 8 characters long.',
+      );
+    }
+
+    // --------------------------------------------------
+    // CHECK EXISTING USER
+    // --------------------------------------------------
+
+    const existingUser =
+      await this.prisma.users.findUnique({
+        where: {
+          email,
+        },
+      });
 
     if (existingUser) {
       throw new BadRequestException(
@@ -28,36 +89,74 @@ export class AuthService {
       );
     }
 
-    const role = await this.prisma.roles.findUnique({
-      where: {
-        id: dto.role_id,
-      },
-    });
+    // --------------------------------------------------
+    // PUBLIC REGISTRATION ROLE
+    // --------------------------------------------------
+    //
+    // Public registration MUST NOT allow the caller
+    // to choose an arbitrary privileged role.
+    //
+    // Every publicly registered account starts as Member.
+    // Administrative roles are assigned through the
+    // protected user-management system.
+    // --------------------------------------------------
 
-    if (!role) {
-      throw new BadRequestException('Invalid role.');
+    const memberRole =
+      await this.prisma.roles.findUnique({
+        where: {
+          name: 'Member',
+        },
+      });
+
+    if (!memberRole) {
+      throw new BadRequestException(
+        'Default Member role is not configured.',
+      );
     }
 
-    const passwordHash = await bcrypt.hash(dto.password, 12);
+    // --------------------------------------------------
+    // HASH PASSWORD
+    // --------------------------------------------------
 
-    const user = await this.prisma.users.create({
-      data: {
-        first_name: dto.first_name,
-        last_name: dto.last_name,
-        email: dto.email.toLowerCase(),
-        phone: dto.phone,
-        password_hash: passwordHash,
-        is_active: true,
-        email_verified: false,
-      },
-    });
+    const passwordHash = await bcrypt.hash(
+      password,
+      12,
+    );
 
-    await this.prisma.user_roles.create({
-      data: {
-        user_id: user.id,
-        role_id: role.id,
-      },
-    });
+    // --------------------------------------------------
+    // CREATE USER + MEMBER ROLE
+    // --------------------------------------------------
+
+    const user =
+      await this.prisma.$transaction(
+        async (tx) => {
+          const createdUser =
+            await tx.users.create({
+              data: {
+                first_name: firstName,
+                last_name: lastName,
+                email,
+                phone: phone || null,
+                password_hash: passwordHash,
+                is_active: true,
+                email_verified: false,
+              },
+            });
+
+          await tx.user_roles.create({
+            data: {
+              user_id: createdUser.id,
+              role_id: memberRole.id,
+            },
+          });
+
+          return createdUser;
+        },
+      );
+
+    // --------------------------------------------------
+    // RESPONSE
+    // --------------------------------------------------
 
     return {
       message: 'Account created successfully.',
@@ -66,43 +165,85 @@ export class AuthService {
         first_name: user.first_name,
         last_name: user.last_name,
         email: user.email,
-        role: role.name,
+        phone: user.phone,
+        role: memberRole.name,
       },
     };
   }
 
-  async login(email: string, password: string) {
-    const user = await this.prisma.users.findUnique({
-      where: {
-        email: email.toLowerCase(),
-      },
-    });
+  // --------------------------------------------------
+  // LOGIN
+  // --------------------------------------------------
+
+  async login(
+    email: string,
+    password: string,
+  ) {
+    const normalizedEmail =
+      email?.toLowerCase().trim();
+
+    if (!normalizedEmail || !password) {
+      throw new UnauthorizedException(
+        'Invalid email or password.',
+      );
+    }
+
+    // --------------------------------------------------
+    // FIND USER
+    // --------------------------------------------------
+
+    const user =
+      await this.prisma.users.findUnique({
+        where: {
+          email: normalizedEmail,
+        },
+      });
 
     if (!user) {
-      throw new UnauthorizedException('Invalid email or password.');
+      throw new UnauthorizedException(
+        'Invalid email or password.',
+      );
     }
+
+    // --------------------------------------------------
+    // ACCOUNT STATUS
+    // --------------------------------------------------
 
     if (!user.is_active) {
-      throw new UnauthorizedException('This account is inactive.');
+      throw new UnauthorizedException(
+        'This account is inactive.',
+      );
     }
 
-    const passwordValid = await bcrypt.compare(
-      password,
-      user.password_hash,
-    );
+    // --------------------------------------------------
+    // PASSWORD VERIFICATION
+    // --------------------------------------------------
+
+    const passwordValid =
+      await bcrypt.compare(
+        password,
+        user.password_hash,
+      );
 
     if (!passwordValid) {
-      throw new UnauthorizedException('Invalid email or password.');
+      throw new UnauthorizedException(
+        'Invalid email or password.',
+      );
     }
 
-    const userRole = await this.prisma.user_roles.findFirst({
-      where: {
-        user_id: user.id,
-      },
-      include: {
-        roles: true,
-      },
-    });
+    // --------------------------------------------------
+    // GET USER ROLE
+    // --------------------------------------------------
+
+    const userRole =
+      await this.prisma.user_roles.findFirst({
+        where: {
+          user_id: user.id,
+        },
+        include: {
+          roles: true,
+        },
+      });
 
     if (!userRole) {
       throw new UnauthorizedException(
@@ -110,13 +251,27 @@ export class AuthService {
       );
     }
 
-    const payload = {
-      sub: user.id,
-      email: user.email,
-      role: userRole.roles.name,
-    };
+    // --------------------------------------------------
+    // JWT PAYLOAD
+    // --------------------------------------------------
 
-    const accessToken = await this.jwtService.signAsync(payload);
+  const payload = {
+    sub: user.id,
+    email: user.email,
+  };
+
+    // --------------------------------------------------
+    // GENERATE ACCESS TOKEN
+    // --------------------------------------------------
+
+    const accessToken =
+      await this.jwtService.signAsync(
+        payload,
+      );
+
+    // --------------------------------------------------
+    // RESPONSE
+    // --------------------------------------------------
 
     return {
       message: 'Login successful.',
