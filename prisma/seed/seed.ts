@@ -137,6 +137,11 @@ async function main() {
     ['departments', 'update'],
     ['departments', 'delete'],
 
+    ['memberships', 'create'],
+    ['memberships', 'read'],
+    ['memberships', 'update'],
+    ['memberships', 'delete'],
+
     ['settings', 'read'],
     ['settings', 'update'],
 
@@ -144,29 +149,29 @@ async function main() {
     ['security', 'read'],
   ] as const;
 
-const permissionRecords: Awaited<
-  ReturnType<typeof prisma.permissions.upsert>
->[] = [];
+  const permissionRecords: Awaited<
+    ReturnType<typeof prisma.permissions.upsert>
+  >[] = [];
 
-for (const [module, action] of permissionDefinitions) {
-  const permission = await prisma.permissions.upsert({
-    where: {
-      module_action: {
+  for (const [module, action] of permissionDefinitions) {
+    const permission = await prisma.permissions.upsert({
+      where: {
+        module_action: {
+          module,
+          action,
+        },
+      },
+      update: {},
+      create: {
+        id: randomUUID(),
+        name: `${module}.${action}`,
         module,
         action,
       },
-    },
-    update: {},
-    create: {
-      id: randomUUID(),
-      name: `${module}.${action}`,
-      module,
-      action,
-    },
-  });
+    });
 
-  permissionRecords.push(permission);
-}
+    permissionRecords.push(permission);
+  }
 
   console.log(`${permissionRecords.length} permissions ready.`);
 

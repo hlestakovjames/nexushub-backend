@@ -38,7 +38,7 @@ export class MembershipsController {
   // --------------------------------------------------
 
   @Post()
-  @Permissions('users.update')
+  @Permissions('memberships.create')
   create(
     @Body() body: CreateMembershipDto,
   ) {
@@ -50,7 +50,7 @@ export class MembershipsController {
   // --------------------------------------------------
 
   @Get()
-  @Permissions('users.read')
+  @Permissions('memberships.read')
   findAll(
     @Query('organization_id')
     organizationId?: string,
@@ -65,7 +65,7 @@ export class MembershipsController {
   // --------------------------------------------------
 
   @Get(':id')
-  @Permissions('users.read')
+  @Permissions('memberships.read')
   findOne(
     @Param(
       'id',
@@ -83,7 +83,7 @@ export class MembershipsController {
   // --------------------------------------------------
 
   @Patch(':id/status')
-  @Permissions('users.update')
+  @Permissions('memberships.update')
   updateStatus(
     @Param(
       'id',
