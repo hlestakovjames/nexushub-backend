@@ -10,6 +10,7 @@ import { DepartmentsModule } from './departments/departments.module';
 import { UsersModule } from './users/users.module';
 import { RolesModule } from './roles/roles.module';
 import { MembershipsModule } from './memberships/memberships.module';
+import { AuditModule } from './audit/audit.module';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { MembershipsModule } from './memberships/memberships.module';
     UsersModule,
     RolesModule,
     MembershipsModule,
+    AuditModule,
   ],
 
   controllers: [
