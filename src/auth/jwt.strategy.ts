@@ -8,11 +8,15 @@ import {
   Strategy,
 } from 'passport-jwt';
 
+import { PrismaService } from '../prisma/prisma.service';
+
 @Injectable()
 export class JwtStrategy extends PassportStrategy(
   Strategy,
 ) {
-  constructor() {
+  constructor(
+    private readonly prisma: PrismaService,
+  ) {
     const jwtSecret =
       process.env.JWT_SECRET;
 
@@ -40,9 +44,39 @@ export class JwtStrategy extends PassportStrategy(
       );
     }
 
+    const user =
+      await this.prisma.users.findUnique({
+        where: {
+          id: payload.sub,
+        },
+      });
+
+    if (!user || !user.is_active) {
+      throw new UnauthorizedException(
+        'User account is not active.',
+      );
+    }
+
+    const userRole =
+      await this.prisma.user_roles.findFirst({
+        where: {
+          user_id: user.id,
+        },
+        include: {
+          roles: true,
+        },
+      });
+
+    if (!userRole) {
+      throw new UnauthorizedException(
+        'No role assigned to this account.',
+      );
+    }
+
     return {
-      userId: payload.sub,
-      email: payload.email,
+      userId: user.id,
+      email: user.email,
+      role: userRole.roles.name,
     };
   }
 }
