@@ -6,11 +6,25 @@ import { AppModule } from './app.module';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
-  const frontendUrl =
-    process.env.FRONTEND_URL || 'http://localhost:3000';
+  const allowedOrigins = [
+    'http://localhost:3000',
+    'https://nexushubglobal.vercel.app',
+  ];
 
   app.enableCors({
-    origin: frontendUrl,
+    origin: (origin, callback) => {
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+        return;
+      }
+
+      callback(
+        new Error(
+          `CORS policy blocked origin: ${origin}`,
+        ),
+        false,
+      );
+    },
     credentials: true,
   });
 
