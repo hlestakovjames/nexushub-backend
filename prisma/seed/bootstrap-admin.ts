@@ -42,15 +42,6 @@ async function main() {
   const prisma = new PrismaClient({ adapter });
 
   try {
-    const existingAdministrator = await prisma.user_roles.findFirst({
-      where: { role_id: adminRole.id },
-    });
-    if (existingAdministrator) {
-      throw new Error(
-        'A Global Admin account is already assigned. This bootstrap is for initial provisioning only and cannot create additional administrators.',
-      );
-    }
-
     const existingUser = await prisma.users.findUnique({ where: { email } });
     if (existingUser) {
       throw new Error(
@@ -76,6 +67,15 @@ async function main() {
     if (!adminRole) {
       throw new Error(
         'Global Admin role is missing. Run the reference-data seed first.',
+      );
+    }
+
+    const existingAdministrator = await prisma.user_roles.findFirst({
+      where: { role_id: adminRole.id },
+    });
+    if (existingAdministrator) {
+      throw new Error(
+        'A Global Admin account is already assigned. This bootstrap is for initial provisioning only and cannot create additional administrators.',
       );
     }
 
